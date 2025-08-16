@@ -115,7 +115,7 @@ class AdminController extends Controller
         }
     }
     /**
-     * Get all alumni with filtering and pagination
+     * Get all alumni with comprehensive filtering and pagination (Alumni Bank)
      */
     public function getAlumni(Request $request): JsonResponse
     {
@@ -128,8 +128,43 @@ class AdminController extends Controller
                 $query->where('batch_id', $request->batch_id);
             }
 
+            if ($request->has('graduation_year') && $request->graduation_year) {
+                $query->whereHas('batch', function ($q) use ($request) {
+                    $q->where('graduation_year', $request->graduation_year);
+                });
+            }
+
             if ($request->has('employment_status') && $request->employment_status) {
                 $query->where('employment_status', $request->employment_status);
+            }
+
+            if ($request->has('degree_program') && $request->degree_program) {
+                $query->where('degree_program', 'like', "%{$request->degree_program}%");
+            }
+
+            if ($request->has('major') && $request->major) {
+                $query->where('major', 'like', "%{$request->major}%");
+            }
+
+            if ($request->has('company') && $request->company) {
+                $query->where('current_employer', 'like', "%{$request->company}%");
+            }
+
+            if ($request->has('location') && $request->location) {
+                $query->where(function ($q) use ($request) {
+                    $location = $request->location;
+                    $q->where('city', 'like', "%{$location}%")
+                        ->orWhere('state_province', 'like', "%{$location}%")
+                        ->orWhere('country', 'like', "%{$location}%");
+                });
+            }
+
+            if ($request->has('willing_to_mentor') && $request->willing_to_mentor !== '') {
+                $query->where('willing_to_mentor', (bool) $request->willing_to_mentor);
+            }
+
+            if ($request->has('willing_to_hire') && $request->willing_to_hire !== '') {
+                $query->where('willing_to_hire_alumni', (bool) $request->willing_to_hire);
             }
 
             if ($request->has('search') && $request->search) {
@@ -138,24 +173,198 @@ class AdminController extends Controller
                     $q->where('first_name', 'like', "%{$search}%")
                         ->orWhere('last_name', 'like', "%{$search}%")
                         ->orWhere('middle_name', 'like', "%{$search}%")
+                        ->orWhere('student_id', 'like', "%{$search}%")
+                        ->orWhere('current_job_title', 'like', "%{$search}%")
+                        ->orWhere('current_employer', 'like', "%{$search}%")
                         ->orWhereHas('user', function ($userQuery) use ($search) {
                             $userQuery->where('email', 'like', "%{$search}%");
                         });
                 });
             }
 
+            // Sorting options
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+
+            switch ($sortBy) {
+                case 'name':
+                    $query->orderBy('first_name', $sortOrder)->orderBy('last_name', $sortOrder);
+                    break;
+                case 'graduation_year':
+                    $query->whereHas('batch', function ($q) use ($sortOrder) {
+                        $q->orderBy('graduation_year', $sortOrder);
+                    });
+                    break;
+                case 'employment_status':
+                    $query->orderBy('employment_status', $sortOrder);
+                    break;
+                case 'created_at':
+                default:
+                    $query->orderBy('created_at', $sortOrder);
+                    break;
+            }
+
             // Pagination
             $perPage = $request->get('per_page', 15);
             $alumni = $query->paginate($perPage);
 
+            // Add summary statistics for current filter
+            $totalFiltered = $query->count();
+            $employmentBreakdown = AlumniProfile::query()
+                ->when($request->has('batch_id'), function ($q) use ($request) {
+                    $q->where('batch_id', $request->batch_id);
+                })
+                ->when($request->has('graduation_year'), function ($q) use ($request) {
+                    $q->whereHas('batch', function ($batchQuery) use ($request) {
+                        $batchQuery->where('graduation_year', $request->graduation_year);
+                    });
+                })
+                ->select('employment_status', DB::raw('count(*) as count'))
+                ->whereNotNull('employment_status')
+                ->groupBy('employment_status')
+                ->pluck('count', 'employment_status');
+
             return response()->json([
                 'success' => true,
-                'data' => $alumni
+                'data' => $alumni,
+                'filter_summary' => [
+                    'total_filtered' => $totalFiltered,
+                    'employment_breakdown' => $employmentBreakdown
+                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch alumni data',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get detailed alumni profile by ID
+     */
+    public function getAlumniProfile(Request $request, $id): JsonResponse
+    {
+        try {
+            $alumni = AlumniProfile::with([
+                'user:id,email,status',
+                'batch:id,name,graduation_year,description',
+            ])->findOrFail($id);
+
+            // Get survey responses for this alumni
+            $surveyResponses = SurveyResponse::with(['survey:id,title', 'answers.surveyQuestion'])
+                ->where('user_id', $alumni->user_id)
+                ->where('status', 'completed')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'profile' => $alumni,
+                    'survey_responses' => $surveyResponses,
+                    'response_count' => $surveyResponses->count()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Alumni profile not found',
+                'error' => $e->getMessage()
+            ], 404);
+        }
+    }
+
+    /**
+     * Get alumni statistics and analytics
+     */
+    public function getAlumniStats(Request $request): JsonResponse
+    {
+        try {
+            // Overall statistics
+            $totalAlumni = AlumniProfile::count();
+
+            // Batch-wise distribution
+            $batchStats = Batch::withCount('alumniProfiles')
+                ->orderBy('graduation_year', 'desc')
+                ->get()
+                ->map(function ($batch) {
+                    return [
+                        'batch_id' => $batch->id,
+                        'batch_name' => $batch->name,
+                        'graduation_year' => $batch->graduation_year,
+                        'alumni_count' => $batch->alumni_profiles_count
+                    ];
+                });
+
+            // Employment status distribution
+            $employmentStats = AlumniProfile::select('employment_status', DB::raw('count(*) as count'))
+                ->whereNotNull('employment_status')
+                ->groupBy('employment_status')
+                ->get()
+                ->pluck('count', 'employment_status');
+
+            // Top employers
+            $topEmployers = AlumniProfile::select('current_employer', DB::raw('count(*) as count'))
+                ->whereNotNull('current_employer')
+                ->where('current_employer', '!=', '')
+                ->groupBy('current_employer')
+                ->orderBy('count', 'desc')
+                ->limit(10)
+                ->get();
+
+            // Degree program distribution
+            $degreePrograms = AlumniProfile::select('degree_program', DB::raw('count(*) as count'))
+                ->whereNotNull('degree_program')
+                ->groupBy('degree_program')
+                ->orderBy('count', 'desc')
+                ->get()
+                ->pluck('count', 'degree_program');
+
+            // Major distribution
+            $majors = AlumniProfile::select('major', DB::raw('count(*) as count'))
+                ->whereNotNull('major')
+                ->groupBy('major')
+                ->orderBy('count', 'desc')
+                ->limit(15)
+                ->get()
+                ->pluck('count', 'major');
+
+            // Geographic distribution
+            $locations = AlumniProfile::select('city', 'state_province', 'country', DB::raw('count(*) as count'))
+                ->whereNotNull('city')
+                ->groupBy('city', 'state_province', 'country')
+                ->orderBy('count', 'desc')
+                ->limit(20)
+                ->get();
+
+            // Mentorship and hiring willingness
+            $mentoringStats = [
+                'willing_to_mentor' => AlumniProfile::where('willing_to_mentor', true)->count(),
+                'willing_to_hire' => AlumniProfile::where('willing_to_hire_alumni', true)->count(),
+                'total_alumni' => $totalAlumni
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'overview' => [
+                        'total_alumni' => $totalAlumni,
+                        'total_batches' => $batchStats->count()
+                    ],
+                    'batch_distribution' => $batchStats,
+                    'employment_stats' => $employmentStats,
+                    'top_employers' => $topEmployers,
+                    'degree_programs' => $degreePrograms,
+                    'majors' => $majors,
+                    'geographic_distribution' => $locations,
+                    'mentoring_stats' => $mentoringStats
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch alumni statistics',
                 'error' => $e->getMessage()
             ], 500);
         }
