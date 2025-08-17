@@ -1,0 +1,97 @@
+# Alumni Tracer System API Endpoints Reference
+
+This document lists all available API endpoints, their corresponding controllers, and provides tips for frontend development.
+
+---
+
+## 1. Public Endpoints (No Authentication Required)
+
+| Endpoint                                 | Method | Controller/Method                | Description                                  |
+|-------------------------------------------|--------|----------------------------------|----------------------------------------------|
+| /api/v1/register                         | POST   | AuthController@register          | Register a new user/alumni                   |
+| /api/v1/login                            | POST   | AuthController@login             | Login and get authentication token           |
+| /api/v1/surveys/{survey}                 | GET    | SurveyController@show            | Get public survey details                    |
+| /api/v1/surveys/{survey}/start           | POST   | SurveyController@startResponse   | Start a survey response (public/invite)      |
+| /api/v1/surveys/{survey}/answer          | POST   | SurveyController@submitAnswer    | Submit an answer to a survey question        |
+| /api/v1/surveys/{survey}/complete        | POST   | SurveyController@completeResponse| Complete a survey response                   |
+| /api/v1/surveys/{survey}/progress        | GET    | SurveyController@getProgress     | Get progress for a public survey             |
+
+---
+
+## 2. Authenticated User Endpoints (Requires Login)
+
+| Endpoint                                 | Method | Controller/Method                | Description                                  |
+|-------------------------------------------|--------|----------------------------------|----------------------------------------------|
+| /api/v1/logout                           | POST   | AuthController@logout            | Logout current user                          |
+| /api/v1/profile                          | GET    | AuthController@profile           | Get current user profile                     |
+| /api/v1/my-surveys                       | GET    | SurveyController@mySurveys       | List surveys assigned to the user            |
+| /api/v1/my-responses                     | GET    | SurveyController@myResponses     | List user's survey responses                 |
+
+---
+
+## 3. Admin Endpoints (Requires Admin Role)
+
+| Endpoint                                         | Method | Controller/Method                        | Description                                  |
+|--------------------------------------------------|--------|------------------------------------------|----------------------------------------------|
+| /api/v1/admin/dashboard                          | GET    | AdminController@dashboard                | Get admin dashboard metrics                  |
+| /api/v1/admin/alumni                             | GET    | AdminController@getAlumni                | List/filter alumni profiles                  |
+| /api/v1/admin/alumni/stats                       | GET    | AdminController@getAlumniStats           | Get alumni statistics                        |
+| /api/v1/admin/alumni/export                      | GET    | AdminController@exportAlumni             | Export alumni data as CSV                    |
+| /api/v1/admin/alumni/{id}                        | GET    | AdminController@getAlumniProfile         | Get a specific alumni profile                |
+| /api/v1/admin/surveys                            | GET    | AdminController@getSurveys               | List/filter surveys                          |
+| /api/v1/admin/surveys                            | POST   | AdminController@createSurvey             | Create a new survey                          |
+| /api/v1/admin/surveys/{id}                       | GET    | AdminController@getSurveyDetails         | Get survey details (with questions)          |
+| /api/v1/admin/surveys/{id}                       | PUT    | AdminController@updateSurvey             | Update a survey                              |
+| /api/v1/admin/surveys/{id}                       | DELETE | AdminController@deleteSurvey             | Delete a survey                              |
+| /api/v1/admin/surveys/{id}/duplicate             | POST   | AdminController@duplicateSurvey          | Duplicate a survey                           |
+| /api/v1/admin/surveys/{survey}/responses         | GET    | AdminController@getSurveyResponses       | Get survey responses and analytics           |
+| /api/v1/admin/surveys/{survey}/export            | GET    | AdminController@exportSurveyResponses    | Export survey responses as CSV               |
+| /api/v1/admin/surveys/{survey}/questions         | POST   | AdminController@createSurveyQuestion     | Add a question to a survey                   |
+| /api/v1/admin/surveys/{survey}/questions/{q}     | PUT    | AdminController@updateSurveyQuestion     | Update a survey question                     |
+| /api/v1/admin/surveys/{survey}/questions/{q}     | DELETE | AdminController@deleteSurveyQuestion     | Delete a survey question                     |
+| /api/v1/admin/surveys/{survey}/questions/reorder | POST   | AdminController@reorderSurveyQuestions   | Reorder survey questions                     |
+| /api/v1/admin/batches                            | GET    | AdminController@getBatches               | List all batches                             |
+
+---
+
+## 4. Health Check
+
+| Endpoint         | Method | Description                |
+|------------------|--------|----------------------------|
+| /api/health      | GET    | Health check/status route  |
+
+---
+
+# Tips for Building the Frontend
+
+1. **Start with the API endpoints above.**
+   - Each endpoint is a feature or page in your app (e.g., alumni list, dashboard, survey builder).
+
+2. **Use tools like Postman or cURL to test endpoints.**
+   - See what data comes back so you know how to display it.
+
+3. **For each page/component:**
+   - Find the endpoint you need.
+   - Make an API call (using fetch or axios in React).
+   - Display the data in a table, card, chart, or form.
+   - For actions (create, update, delete), use POST/PUT/DELETE endpoints.
+
+4. **Authentication:**
+   - Most endpoints require a Bearer token (from login). Store it in localStorage and send it in the Authorization header.
+
+5. **Error handling:**
+   - Show user-friendly messages for errors (e.g., failed login, validation errors).
+
+6. **Use the endpoint descriptions to plan your UI.**
+   - Example: `/api/v1/admin/alumni` → Alumni Bank page with filters and export button.
+   - Example: `/api/v1/admin/surveys` → Survey Bank page with create/edit/delete features.
+
+7. **You do NOT need to read backend logic.**
+   - The endpoint list and sample responses are enough for frontend work.
+
+8. **Ask for sample API responses if you’re unsure.**
+   - Or, call the endpoint and log the response in your React app.
+
+---
+
+**You can always refer to this file as your master API reference while building the frontend!**
