@@ -11,7 +11,7 @@ This document lists all available API endpoints, their corresponding controllers
 | /api/v1/register                         | POST   | AuthController@register          | Register a new user/alumni                   |
 | /api/v1/login                            | POST   | AuthController@login             | Login and get authentication token           |
 | /api/v1/surveys/{survey}                 | GET    | SurveyController@show            | Get public survey details                    |
-| /api/v1/surveys/{survey}/start           | POST   | SurveyController@startResponse   | Start a survey response (public/invite)      |
+| /api/v1/surveys/{survey}/start           | POST   | SurveyController@startResponse   | Start a survey response (publcic/invite)      |
 | /api/v1/surveys/{survey}/answer          | POST   | SurveyController@submitAnswer    | Submit an answer to a survey question        |
 | /api/v1/surveys/{survey}/complete        | POST   | SurveyController@completeResponse| Complete a survey response                   |
 | /api/v1/surveys/{survey}/progress        | GET    | SurveyController@getProgress     | Get progress for a public survey             |
